@@ -178,13 +178,6 @@ int main(int argc, char *argv[]) {
     // Assicura il null-terminator
     request.city[sizeof(request.city) - 1] = '\0';
 
-        char client_ip[INET_ADDRSTRLEN];
-        inet_ntop(AF_INET, &clientAddress.sin_addr,
-                  client_ip, INET_ADDRSTRLEN);
-
-        printf("Request '%c' '%s' from client ip %s\n",
-               request.type, request.city, client_ip);
-
         // LOGGING 
         char client_host[NI_MAXHOST];
         char client_ip[NI_MAXHOST];
@@ -215,9 +208,6 @@ int main(int argc, char *argv[]) {
 
         printf("Richiesta ricevuta da %s (ip %s): type='%c', city='%s'\n",
                client_host, client_ip, request.type, request.city);
-
-        unsigned int status = validate_request(&request);
-        response.status = status;
 
         // valida la richiesta e prepara la risposta
         unsigned int status = validate_request(&request);
