@@ -64,7 +64,6 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 
-    // 🛑 CORREZIONE CRITICA 1: Parsing robusto della stringa richiesta
     weather_request_t request;
     memset(&request, 0, sizeof(request));
 
@@ -115,7 +114,6 @@ int main(int argc, char *argv[]) {
         errorhandler("Creazione socket fallita.");
     }
 
-    // 🛑 CORREZIONE 2: Configurazione e Risoluzione DNS del Server con getaddrinfo
     struct addrinfo hints, *server_info, *p;
     memset(&hints, 0, sizeof(hints));
     hints.ai_family = AF_INET; // IPv4
