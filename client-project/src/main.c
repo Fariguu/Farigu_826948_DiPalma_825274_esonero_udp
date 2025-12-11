@@ -24,11 +24,11 @@
     #include <unistd.h>
     #include <arpa/inet.h>
     #include <sys/types.h>
+    #include <sys/socket.h>
     #include <netinet/in.h>
     #include <netdb.h>
     #define closesocket close
 #endif
-#include <sys/socket.h>
 
 void clearwinsock() {
 #if defined WIN32
