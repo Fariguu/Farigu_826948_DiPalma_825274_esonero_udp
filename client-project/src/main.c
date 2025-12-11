@@ -87,8 +87,9 @@ int main(int argc, char *argv[]) {
 #endif
 
     // CREAZIONE DELLA SOCKET
+ 
     int clientSocket;
-    clientSocket = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
+    clientSocket = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP);
     if (clientSocket < 0) {
         errorhandler("Creazione socket fallita.");
     }
