@@ -161,7 +161,6 @@ int main(int argc, char *argv[]) {
         weather_response_t response;
         char recv_buffer[REQ_SIZE];
 
-        
         // 3.1 riceve la richiesta dal client (datagram)
         int bytes_received = recvfrom(serverSocket,
                                       (char*)&request,
