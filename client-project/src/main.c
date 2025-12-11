@@ -167,7 +167,7 @@ int main(int argc, char *argv[]) {
     }
 
     // RICEZIONE DELLA RISPOSTA DAL SERVER (recvfrom)
-    // definiamo un buffer per ricevere il datagramma di risposta (9 byte)
+    // definiamo un buffer per ricevere il datagramma di risposta (9 byte).
 
     char buffer_response[RESP_SIZE];
     struct sockaddr_in fromAddr;
