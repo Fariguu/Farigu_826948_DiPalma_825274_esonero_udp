@@ -3,7 +3,6 @@
  *
  * UDP Client - Template for Computer Networks assignment
  */
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -66,10 +65,6 @@ int main(int argc, char *argv[]) {
 
     weather_request_t request;
     memset(&request, 0, sizeof(request));
-
-    // sscanf legge un carattere e una stringa ignorando gli spazi iniziali
-    if (sscanf(request_arg, " %c %63s", &request.type, request.city) != 2) {
-        printf("Formato richiesta non valido. Formato atteso: \"type city\"\n");
     
     char *space_pos = strchr(request_arg, ' ');
 
