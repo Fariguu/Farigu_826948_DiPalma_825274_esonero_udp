@@ -176,7 +176,7 @@ int main(int argc, char *argv[]) {
     // Deserializzazione city
     size_t city_len = (bytes_received - offset > sizeof(request.city)) ? sizeof(request.city) : bytes_received - offset;
     memcpy(request.city, recv_buffer + offset, city_len);
-    
+
     // Assicura il null-terminator
     request.city[sizeof(request.city) - 1] = '\0';
 
@@ -219,15 +219,40 @@ int main(int argc, char *argv[]) {
             response.value = 0.0f;
         }
 
-        // invia la risposta al client
-        if (sendto(serverSocket,
-                   (char*)&response,
-                   sizeof(response),
-                   0,
-                   (struct sockaddr*)&clientAddress,
-                   client_len) < 0) {
-            errorhandler("sendto() failed");
-        }
+    // Invio della risposta
+
+    // 1. Definisci un buffer per il datagramma da inviare
+    char send_buffer[RESP_SIZE];
+    offset = 0;
+
+    // 2. Serializza status
+    uint32_t net_status = htonl(response.status);
+    memcpy(send_buffer + offset, &net_status, sizeof(uint32_t));
+    offset += sizeof(uint32_t);
+
+    // 3. Serializza type
+    memcpy(send_buffer + offset, &response.type, sizeof(char));
+    offset += sizeof(char);
+
+    // 4. Serializza value
+    uint32_t net_value_int;
+
+    memcpy(&net_value_int, &response.value, sizeof(float)); 
+
+    net_value_int = htonl(net_value_int);
+
+    memcpy(send_buffer + offset, &net_value_int, sizeof(uint32_t));
+    offset += sizeof(uint32_t);
+
+    // 5. Invia il buffer serializzato
+    if (sendto(serverSocket,
+            send_buffer, // Invia il buffer, non la struct
+            offset,      // Invia la dimensione esatta serializzata
+            0,
+            (struct sockaddr*)&clientAddress,
+            client_len) < 0) {
+        errorhandler("sendto() failed");
+    }
     }
 
     // non raggiunto, ma corretto 
