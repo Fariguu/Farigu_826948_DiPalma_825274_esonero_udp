@@ -145,7 +145,6 @@ int main(int argc, char *argv[]) {
     struct sockaddr_in serverAddress;
     memset(&serverAddress, 0, sizeof(serverAddress));
     serverAddress.sin_family = AF_INET;
-    // 🛑 CORREZIONE 1: Ascolta su tutte le interfacce (INADDR_ANY)
     serverAddress.sin_addr.s_addr = htonl(INADDR_ANY); 
     serverAddress.sin_port = htons(port);
 
