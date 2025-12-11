@@ -181,7 +181,7 @@ int main(int argc, char *argv[]) {
         errorhandler("recvfrom() fallita o nessun datagramma ricevuto.");
     }
 
-    // controllo di sicurezza: Verifica che il pacchetto provenga dal server atteso
+    // controllo di sicurezza: Verifica che il pacchetto provenga dal server atteso.
     if (serverAddress.sin_addr.s_addr != fromAddr.sin_addr.s_addr) {
         printf("ERRORE DI SICUREZZA: Pacchetto ricevuto da sorgente sconosciuta. IP: %s\n", inet_ntoa(fromAddr.sin_addr));
         closesocket(clientSocket);
