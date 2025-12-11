@@ -47,6 +47,11 @@ int main(int argc, char *argv[]) {
     char *server_ip = DEFAULT_SERVER_ADDRESS;
     int port = DEFAULT_PORT;
     char *request_arg = NULL; // Conterrà la stringa
+    
+    // Variabili per DNS Lookup e output
+    char server_ip_str[16]; // Stringa per l'indirizzo IP numerico finale (es. "127.0.0.1")
+    char *server_name_canonico = NULL; // Nome canonico per l'output (es. "localhost")
+    struct hostent *host_info; // Struttura per i risultati DNS
 
     // Parsing degli argomenti: -s server, -p port, -r request
     for (int i = 1; i < argc; i++) {
@@ -93,6 +98,49 @@ int main(int argc, char *argv[]) {
     if (clientSocket < 0) {
         errorhandler("Creazione socket fallita.");
     }
+
+    // CONFIGURAZIONE E RISOLUZIONE DNS DEL SERVER
+    struct sockaddr_in serverAddress;
+    memset(&serverAddress, 0, sizeof(serverAddress));
+    serverAddress.sin_family = AF_INET;
+    serverAddress.sin_port = htons(port);
+
+    // Tenta di convertire l'input 'server_ip' in indirizzo IP numerico.
+    // Se fallisce, 'server_ip' è un nome simbolico (hostname).
+
+    if ((serverAddress.sin_addr.s_addr = inet_addr(server_ip)) == INADDR_NONE) {
+
+        // Caso 1: L'input è un NOME SIMBOLICO
+        // gethostbyname può essere chiamata solo con AF_INET 
+        host_info = gethostbyname(server_ip);
+        
+        if (host_info == NULL) {
+            errorhandler("Risoluzione nome server fallita (gethostbyname).");
+        }
+        
+        memcpy(&serverAddress.sin_addr, host_info->h_addr_list[0], host_info->h_length); // Copia l'indirizzo risolto
+        
+        server_name_canonico = host_info->h_name; // Nome canonico dal DNS
+        
+    } else {
+
+        // Caso 2: L'input è un INDIRIZZO IP NUMERICO
+        // L'indirizzo è già in serverAddress.sin_addr
+        struct in_addr addr;
+        addr.s_addr = serverAddress.sin_addr.s_addr;
+        
+        host_info = gethostbyaddr((char *) &addr, sizeof(addr), AF_INET); // Reverse lookup
+        
+        if (host_info == NULL) {
+            server_name_canonico = server_ip; // Usa l'IP come nome
+        } else {
+            server_name_canonico = host_info->h_name; // Nome canonico dal DNS
+        }
+    }
+
+    // Salva la stringa IP finale (per l'output)
+    strncpy(server_ip_str, inet_ntoa(serverAddress.sin_addr), 15);
+    server_ip_str[15] = '\0'; // Assicura la terminazione
 
     // CONFIGURAZIONE DELL'INDIRIZZO DEL SERVER
     struct sockaddr_in serverAddress;
