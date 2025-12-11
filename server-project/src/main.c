@@ -151,8 +151,6 @@ int main(int argc, char *argv[]) {
         weather_request_t  request;
         weather_response_t response;
 
-        // Blocco da SOSTITUIRE: Ricezione della richiesta
-
     // 1. Definizione di un buffer per il datagramma grezzo
     char recv_buffer[REQ_SIZE]; 
     int bytes_received = recvfrom(serverSocket,
@@ -186,6 +184,40 @@ int main(int argc, char *argv[]) {
 
         printf("Request '%c' '%s' from client ip %s\n",
                request.type, request.city, client_ip);
+
+        // LOGGING 
+        char client_host[NI_MAXHOST];
+        char client_ip[NI_MAXHOST];
+
+        // 1. Ottieni l'Hostname
+        int res_host = getnameinfo((struct sockaddr*)&clientAddress,
+                                   client_len,
+                                   client_host, NI_MAXHOST,
+                                   NULL, 0,
+                                   NI_NAMEREQD);
+
+        if (res_host != 0) {
+            // Se fallisce, usiamo l'IP sia per il nome host che per l'IP
+            getnameinfo((struct sockaddr*)&clientAddress, client_len,
+                         client_ip, NI_MAXHOST,
+                         NULL, 0,
+                         NI_NUMERICHOST);
+            // Sostituiamo il nome host con l'IP (come fallback)
+            strncpy(client_host, client_ip, NI_MAXHOST); 
+            client_host[NI_MAXHOST - 1] = '\0';
+        } else {
+             // 2. Ottieni l'IP numerico
+             getnameinfo((struct sockaddr*)&clientAddress, client_len,
+                         client_ip, NI_MAXHOST,
+                         NULL, 0,
+                         NI_NUMERICHOST);
+        }
+
+        printf("Richiesta ricevuta da %s (ip %s): type='%c', city='%s'\n",
+               client_host, client_ip, request.type, request.city);
+
+        unsigned int status = validate_request(&request);
+        response.status = status;
 
         // valida la richiesta e prepara la risposta
         unsigned int status = validate_request(&request);
