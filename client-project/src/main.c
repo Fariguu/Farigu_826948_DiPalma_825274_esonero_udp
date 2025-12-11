@@ -102,12 +102,6 @@ int main(int argc, char *argv[]) {
     serverAddress.sin_addr.s_addr = inet_addr(server_ip);
     serverAddress.sin_port = htons(port);
 
-    // CONNESSIONE AL SERVER
-    if (connect(clientSocket, (struct sockaddr *) &serverAddress, sizeof(serverAddress)) < 0) {
-        errorhandler("Connessione al server fallita. Controlla IP e Porta.");
-        closesocket(clientSocket);
-    }
-
     // LOGICA DI COMUNICAZIONE CON IL SERVER (REQUEST/RESPONSE)
 
     // Invio della richiesta al server
