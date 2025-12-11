@@ -12,6 +12,8 @@
 #include <ctype.h> // Necessario per la funzione toupper()
 #include "protocol.h"
 
+#define REQ_SIZE (sizeof(char) + sizeof(request.city))
+#define RESP_SIZE (sizeof(unsigned int) + sizeof(char) + sizeof(float))
 #define NO_ERROR 0
 
 #if defined WIN32
@@ -142,62 +144,67 @@ int main(int argc, char *argv[]) {
     strncpy(server_ip_str, inet_ntoa(serverAddress.sin_addr), 15);
     server_ip_str[15] = '\0'; // Assicura la terminazione
 
-    // CONFIGURAZIONE DELL'INDIRIZZO DEL SERVER
-    struct sockaddr_in serverAddress;
-
-    memset(&serverAddress, 0, sizeof(serverAddress)); // Pulisce la struttura
-    serverAddress.sin_family = AF_INET;
-    serverAddress.sin_addr.s_addr = inet_addr(server_ip);
-    serverAddress.sin_port = htons(port);
-
     // LOGICA DI COMUNICAZIONE CON IL SERVER (REQUEST/RESPONSE)
 
-    // Invio della richiesta al server
-    if (send(clientSocket, (char*)&request, sizeof(weather_request_t), 0) < 0) {
-        errorhandler("send() fallita.");
+    // 1. SERIALIZZAZIONE MANUALE DELLA RICHIESTA
+
+    char buffer_request[REQ_SIZE];
+    int offset = 0;
+
+    memcpy(buffer_request + offset, &request.type, sizeof(char));
+    offset += sizeof(char);
+
+    memcpy(buffer_request + offset, request.city, sizeof(request.city));
+    offset += sizeof(request.city);
+
+    // 2. Invio della richiesta al server usando sendto()
+    // Usiamo l'indirizzo del server precedentemente risolto in serverAddress
+
+    if (sendto(clientSocket, buffer_request, offset, 0,
+            (struct sockaddr*)&serverAddress, sizeof(serverAddress)) != offset) { 
+        errorhandler("sendto() fallita: inviato numero di byte diverso da quello atteso.");
     }
 
-    // Ricezione della risposta dal server
-    weather_response_t response;
-    int bytes_received = recv(clientSocket, (char*)&response, sizeof(weather_response_t), 0);
-    
+    // 3. RICEZIONE DELLA RISPOSTA DAL SERVER (recvfrom)
+    // Definiamo un buffer per ricevere il datagramma di risposta (9 byte)
+
+    char buffer_response[RESP_SIZE];
+    struct sockaddr_in fromAddr;
+    unsigned int fromSize = sizeof(fromAddr);
+
+    // Ricezione del datagramma dal server
+    int bytes_received = recvfrom(clientSocket, buffer_response, RESP_SIZE, 0,
+                                (struct sockaddr*)&fromAddr, &fromSize);
+
     if (bytes_received <= 0) {
-        errorhandler("recv() fallita o connessione chiusa.");
+        errorhandler("recvfrom() fallita o nessun datagramma ricevuto.");
+    }
+
+    // 4. Controllo di sicurezza: Verifica che il pacchetto provenga dal server atteso
+    if (serverAddress.sin_addr.s_addr != fromAddr.sin_addr.s_addr) {
+        printf("ERRORE DI SICUREZZA: Pacchetto ricevuto da sorgente sconosciuta. IP: %s\n", inet_ntoa(fromAddr.sin_addr));
         closesocket(clientSocket);
+        clearwinsock();
+        exit(1);
     }
-    
-    printf("Ricevuto risultato dal server ip %s. ", server_ip);
 
-    // Visualizzazione della risposta
-    if (response.status == STATUS_SUCCESS) {
-        request.city[0] = toupper(request.city[0]);
-        
-        char* type_label;
-        switch(response.type) {
-            case 't': 
-                printf("%s: Temperatura = %.1f°C\n", request.city, response.value); 
-                break;
-            case 'h': 
-                printf("%s: Umidità = %.1f%%\n", request.city, response.value); 
-                break;
-            case 'w': 
-                printf("%s: Vento = %.1f km/h\n", request.city, response.value); 
-                break;
-            case 'p': 
-                printf("%s: Pressione = %.1f hPa\n", request.city, response.value); 
-                break;
-            default:
-                // Caso di sicurezza
-                printf("Dati meteo ricevuti (Valore: %.1f)\n", response.value);
-        }
+    // 5. DESERIALIZZAZIONE E CONVERSIONE NBO DELLA RISPOSTA
+    weather_response_t response;
+    offset = 0;
 
-    } else if (response.status == STATUS_CITY_NOT_AVAILABLE) {
-        printf("Città non disponibile\n");
-    } else if (response.status == STATUS_INVALID_REQUEST) {
-        printf("Richiesta non valida\n");
-    } else {
-        printf("Errore sconosciuto dal server (Status: %d)\n", response.status);
-    }
+    uint32_t net_status;
+    memcpy(&net_status, buffer_response + offset, sizeof(uint32_t));
+    response.status = ntohl(net_status); // Conversione da Network a Host
+    offset += sizeof(uint32_t);
+
+    memcpy(&response.type, buffer_response + offset, sizeof(char));
+    offset += sizeof(char);
+
+    uint32_t net_value;
+    memcpy(&net_value, buffer_response + offset, sizeof(uint32_t));
+    net_value = ntohl(net_value); // Conversione da Network a Host
+
+    memcpy(&response.value, &net_value, sizeof(float)); 
 
     // CHIUSURA DELLA CONNESSIONE
     closesocket(clientSocket);
