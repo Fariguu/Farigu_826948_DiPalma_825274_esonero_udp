@@ -75,15 +75,44 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 
-    // parsing della stringa richiesta
+    // Parsing della stringa di richiesta in struttura weather_request_t
+
     weather_request_t request;
     memset(&request, 0, sizeof(request));
 
     // sscanf legge un carattere e una stringa ignorando gli spazi iniziali
     if (sscanf(request_arg, " %c %63s", &request.type, request.city) != 2) {
         printf("Formato richiesta non valido. Formato atteso: \"type city\"\n");
+    
+    char *space_pos = strchr(request_arg, ' ');
+
+    // 1. Validazione Formato (Deve esserci uno spazio E il type deve essere 1 carattere)
+    if (space_pos == NULL || (space_pos - request_arg) != 1) {
+        printf("ERRORE DI SINTASSI: Il tipo di richiesta deve essere un singolo carattere (es. t, h, w, p) seguito da uno spazio.\n");
         return -1;
     }
+
+    // 2. Estrazione del Type
+    request.type = request_arg[0];
+
+    // 3. Estrazione della City (dal carattere dopo il primo spazio)
+    char *city_start = space_pos + 1;
+
+    // Ignora spazi multipli tra type e city (sebbene non richiesto, aumenta la robustezza)
+    while (*city_start == ' ') { 
+        city_start++;
+    }
+
+    // 4. Validazione Lunghezza della City (Specificato: max 63 caratteri)
+    size_t actual_city_len = strlen(city_start);
+    if (actual_city_len == 0 || actual_city_len >= sizeof(request.city)) {
+        printf("ERRORE DI VALIDAZIONE: Il nome della città non è specificato o supera la lunghezza massima di %zu caratteri.\n", sizeof(request.city) - 1);
+        return -1;
+    }
+
+    // 5. Copia e Null-Terminazione
+    strncpy(request.city, city_start, sizeof(request.city) - 1);
+    request.city[sizeof(request.city) - 1] = '\0';
 
 #if defined WIN32
     // Initialize Winsock

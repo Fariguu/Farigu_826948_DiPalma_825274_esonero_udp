@@ -33,6 +33,15 @@
     #define closesocket close
 #endif
 
+/* Fallback se qualche header non definisce questi simboli */
+#ifndef INET_ADDRSTRLEN
+#define INET_ADDRSTRLEN 16
+#endif
+
+#if defined WIN32
+typedef int socklen_t;
+#endif
+
 void clearwinsock() {
 #if defined WIN32
     WSACleanup();
@@ -116,7 +125,7 @@ int main(int argc, char *argv[]) {
     }
 #endif
 
-    // CREAZIONE DELLA SOCKET UDP
+    // 1. CREAZIONE DELLA SOCKET UDP
     int serverSocket; // nome carino per la socket
     serverSocket = socket(PF_INET, SOCK_DGRAM, 0);
     if (serverSocket < 0) {
@@ -125,7 +134,7 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 
-    // CONFIGURAZIONE DELL'INDIRIZZO DEL SERVER E BIND
+    // 2. CONFIGURAZIONE DELL'INDIRIZZO DEL SERVER E BIND
     struct sockaddr_in serverAddress;
     memset(&serverAddress, 0, sizeof(serverAddress));
     serverAddress.sin_family = AF_INET;
@@ -143,26 +152,38 @@ int main(int argc, char *argv[]) {
     printf("Weather UDP Server started. Waiting for datagrams on port '%d'...\n",
            DEFAULT_PORT);
 
-    // CICLO PRINCIPALE DI RICEZIONE/RISPOSTA
+    // 3. CICLO PRINCIPALE DI RICEZIONE/RISPOSTA
     while (1) {
         struct sockaddr_in clientAddress;
         socklen_t client_len = sizeof(clientAddress);
 
         weather_request_t  request;
         weather_response_t response;
+        char recv_buffer[REQ_SIZE];
 
-    // 1. Definizione di un buffer per il datagramma grezzo
-    char recv_buffer[REQ_SIZE]; 
-    int bytes_received = recvfrom(serverSocket,
-                                recv_buffer,
-                                REQ_SIZE,
-                                0,
-                                (struct sockaddr*)&clientAddress,
-                                &client_len);
-    if (bytes_received <= 0) {
-        errorhandler("recvfrom() failed or empty datagram");
-        continue;
-    }
+        // 3.1 riceve la richiesta dal client (datagram)
+        int bytes_received = recvfrom(serverSocket,
+                                      (char*)&request,
+                                      sizeof(request),
+                                      0,
+                                      (struct sockaddr*)&clientAddress,
+                                      &client_len);
+        if (bytes_received <= 0) {
+            errorhandler("recvfrom() failed or empty datagram");
+            continue; // resta in ascolto
+        }
+
+        // assicura che la stringa 'city' sia null-terminated (funzione di sicurezza)
+        request.city[sizeof(request.city) - 1] = '\0';
+
+        int is_city_supported(char* city_name) {
+        // Prima di cercare: NULL-termina la stringa nel primo spazio/carattere non valido
+        for (int i = 0; i < 64; i++) {
+            if (city_name[i] == '\0' || isspace(city_name[i])) {
+                city_name[i] = '\0';
+                break;
+            }
+        }
 
     // Deserializzazione Manuale
     int offset = 0;
@@ -176,40 +197,35 @@ int main(int argc, char *argv[]) {
     memcpy(request.city, recv_buffer + offset, city_len);
 
     // Assicura il null-terminator
-    request.city[sizeof(request.city) - 1] = '\0';
+    size_t received_city_len = bytes_received - offset;
+    if (received_city_len > 0) {
+        request.city[sizeof(request.city) - 1] = '\0';
+    }
 
-        // LOGGING 
-        char client_host[NI_MAXHOST];
-        char client_ip[NI_MAXHOST];
+        // NUOVO BLOCCO DI LOGGING (Solo IP, più robusto)
+char client_host[NI_MAXHOST]; // Per l'output
+char client_ip[NI_MAXHOST];   // Per l'output
 
-        // 1. Ottieni l'Hostname
-        int res_host = getnameinfo((struct sockaddr*)&clientAddress,
-                                   client_len,
-                                   client_host, NI_MAXHOST,
-                                   NULL, 0,
-                                   NI_NAMEREQD);
+// Ottieni l'IP numerico in modo diretto e robusto
+int res_ip = getnameinfo((struct sockaddr*)&clientAddress, client_len,
+                          client_ip, NI_MAXHOST,
+                          NULL, 0,
+                          NI_NUMERICHOST);
 
-        if (res_host != 0) {
-            // Se fallisce, usiamo l'IP sia per il nome host che per l'IP
-            getnameinfo((struct sockaddr*)&clientAddress, client_len,
-                         client_ip, NI_MAXHOST,
-                         NULL, 0,
-                         NI_NUMERICHOST);
-            // Sostituiamo il nome host con l'IP (come fallback)
-            strncpy(client_host, client_ip, NI_MAXHOST); 
-            client_host[NI_MAXHOST - 1] = '\0';
-        } else {
-             // 2. Ottieni l'IP numerico
-             getnameinfo((struct sockaddr*)&clientAddress, client_len,
-                         client_ip, NI_MAXHOST,
-                         NULL, 0,
-                         NI_NUMERICHOST);
-        }
+if (res_ip != 0) {
+    // Fallback se fallisce anche l'IP (molto raro)
+    strcpy(client_ip, "N/A");
+}
 
-        printf("Richiesta ricevuta da %s (ip %s): type='%c', city='%s'\n",
-               client_host, client_ip, request.type, request.city);
+// Per l'hostname, usa l'IP come fallback (il comportamento desiderato in caso di fallimento)
+strncpy(client_host, client_ip, NI_MAXHOST); 
+client_host[NI_MAXHOST - 1] = '\0'; 
 
-        // valida la richiesta e prepara la risposta
+// Il printf rimane lo stesso
+printf("Richiesta ricevuta da %s (ip %s): type='%c', city='%s'\n",
+        client_host, client_ip, request.type, request.city);
+
+        // 3.2 valida la richiesta e prepara la risposta
         unsigned int status = validate_request(&request);
         response.status = status;
 
@@ -241,45 +257,21 @@ int main(int argc, char *argv[]) {
             response.value = 0.0f;
         }
 
-    // Invio della risposta
-
-    // 1. Definisci un buffer per il datagramma da inviare
-    char send_buffer[RESP_SIZE];
-    offset = 0;
-
-    // 2. Serializza status
-    uint32_t net_status = htonl(response.status);
-    memcpy(send_buffer + offset, &net_status, sizeof(uint32_t));
-    offset += sizeof(uint32_t);
-
-    // 3. Serializza type
-    memcpy(send_buffer + offset, &response.type, sizeof(char));
-    offset += sizeof(char);
-
-    // 4. Serializza value
-    uint32_t net_value_int;
-
-    memcpy(&net_value_int, &response.value, sizeof(float)); 
-
-    net_value_int = htonl(net_value_int);
-
-    memcpy(send_buffer + offset, &net_value_int, sizeof(uint32_t));
-    offset += sizeof(uint32_t);
-
-    // 5. Invia il buffer serializzato
-    if (sendto(serverSocket,
-            send_buffer, // Invia il buffer, non la struct
-            offset,      // Invia la dimensione esatta serializzata
-            0,
-            (struct sockaddr*)&clientAddress,
-            client_len) < 0) {
-        errorhandler("sendto() failed");
-    }
+        // 3.3 invia la risposta al client
+        if (sendto(serverSocket,
+                   (char*)&response,
+                   sizeof(response),
+                   0,
+                   (struct sockaddr*)&clientAddress,
+                   client_len) < 0) {
+            errorhandler("sendto() failed");
+        }
     }
 
-    // non raggiunto, ma corretto 
+    // non raggiunto, ma corretto
     printf("Server terminated.\n");
     closesocket(serverSocket);
     clearwinsock();
     return 0;
+}
 }
