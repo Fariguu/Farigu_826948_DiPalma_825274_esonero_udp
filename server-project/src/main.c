@@ -202,36 +202,28 @@ int main(int argc, char *argv[]) {
         request.city[sizeof(request.city) - 1] = '\0';
     }
 
-        // LOGGING 
-        char client_host[NI_MAXHOST];
-        char client_ip[NI_MAXHOST];
+        // NUOVO BLOCCO DI LOGGING (Solo IP, più robusto)
+char client_host[NI_MAXHOST]; // Per l'output
+char client_ip[NI_MAXHOST];   // Per l'output
 
-        // 1. Ottieni l'Hostname
-        int res_host = getnameinfo((struct sockaddr*)&clientAddress,
-                                   client_len,
-                                   client_host, NI_MAXHOST,
-                                   NULL, 0,
-                                   NI_NAMEREQD);
+// Ottieni l'IP numerico in modo diretto e robusto
+int res_ip = getnameinfo((struct sockaddr*)&clientAddress, client_len,
+                          client_ip, NI_MAXHOST,
+                          NULL, 0,
+                          NI_NUMERICHOST);
 
-        if (res_host != 0) {
-            // Se fallisce, usiamo l'IP sia per il nome host che per l'IP
-            getnameinfo((struct sockaddr*)&clientAddress, client_len,
-                         client_ip, NI_MAXHOST,
-                         NULL, 0,
-                         NI_NUMERICHOST);
-            // Sostituiamo il nome host con l'IP (come fallback)
-            strncpy(client_host, client_ip, NI_MAXHOST); 
-            client_host[NI_MAXHOST - 1] = '\0';
-        } else {
-             // 2. Ottieni l'IP numerico
-             getnameinfo((struct sockaddr*)&clientAddress, client_len,
-                         client_ip, NI_MAXHOST,
-                         NULL, 0,
-                         NI_NUMERICHOST);
-        }
+if (res_ip != 0) {
+    // Fallback se fallisce anche l'IP (molto raro)
+    strcpy(client_ip, "N/A");
+}
 
-        printf("Richiesta ricevuta da %s (ip %s): type='%c', city='%s'\n",
-               client_host, client_ip, request.type, request.city);
+// Per l'hostname, usa l'IP come fallback (il comportamento desiderato in caso di fallimento)
+strncpy(client_host, client_ip, NI_MAXHOST); 
+client_host[NI_MAXHOST - 1] = '\0'; 
+
+// Il printf rimane lo stesso
+printf("Richiesta ricevuta da %s (ip %s): type='%c', city='%s'\n",
+        client_host, client_ip, request.type, request.city);
 
         // 3.2 valida la richiesta e prepara la risposta
         unsigned int status = validate_request(&request);
@@ -281,4 +273,5 @@ int main(int argc, char *argv[]) {
     closesocket(serverSocket);
     clearwinsock();
     return 0;
+}
 }
