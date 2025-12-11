@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <string.h> // Necessario per strncpy e strchr
 #include <ctype.h> // Necessario per la funzione toupper()
+#include <stdint.h>
 #include "protocol.h"
 
 #define REQ_SIZE (sizeof(char) + sizeof(request.city))
@@ -22,12 +23,12 @@
 #else
     #include <unistd.h>
     #include <sys/types.h>
-    #include <sys/socket.h>
-    #include <arpa/inet.h>
     #include <netinet/in.h>
     #include <netdb.h>
     #define closesocket close
 #endif
+#include <arpa/inet.h>
+#include <sys/socket.h>
 
 void clearwinsock() {
 #if defined WIN32
