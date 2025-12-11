@@ -176,6 +176,15 @@ int main(int argc, char *argv[]) {
         // assicura che la stringa 'city' sia null-terminated (funzione di sicurezza)
         request.city[sizeof(request.city) - 1] = '\0';
 
+        int is_city_supported(char* city_name) {
+        // Prima di cercare: NULL-termina la stringa nel primo spazio/carattere non valido
+        for (int i = 0; i < 64; i++) {
+            if (city_name[i] == '\0' || isspace(city_name[i])) {
+                city_name[i] = '\0';
+                break;
+            }
+        }
+
     // Deserializzazione Manuale
     int offset = 0;
 
@@ -188,7 +197,10 @@ int main(int argc, char *argv[]) {
     memcpy(request.city, recv_buffer + offset, city_len);
 
     // Assicura il null-terminator
-    request.city[sizeof(request.city) - 1] = '\0';
+    size_t received_city_len = bytes_received - offset;
+    if (received_city_len > 0) {
+        request.city[sizeof(request.city) - 1] = '\0';
+    }
 
         // LOGGING 
         char client_host[NI_MAXHOST];
