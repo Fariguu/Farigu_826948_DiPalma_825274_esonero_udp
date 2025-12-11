@@ -1,10 +1,10 @@
 /*
  * main.c
  *
- * TCP Client - Template for Computer Networks assignment
+ * UDP Client - Template for Computer Networks assignment
  *
- * This file contains the boilerplate code for a TCP client
- * portable across Windows, Linux and macOS.
+ * This file contains the boilerplate code for a UDP client
+ * portable across Windows, Linux, and macOS.
  */
 #include <stdio.h>
 #include <stdlib.h>
