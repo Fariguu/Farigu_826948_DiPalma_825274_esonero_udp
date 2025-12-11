@@ -144,7 +144,7 @@ int main(int argc, char *argv[]) {
     serverAddress.sin_family = AF_INET;
     serverAddress.sin_port   = htons(port);
 
-    /* tenta di convertire l'input 'server_ip' in indirizzo IP numerico.
+    /* tenta di convertire l'input 'server_ip' in indirizzo IP numerico
        se fallisce, 'server_ip' è un nome simbolico (hostname). */
     if ((serverAddress.sin_addr.s_addr = inet_addr(server_ip)) == INADDR_NONE) {
 
