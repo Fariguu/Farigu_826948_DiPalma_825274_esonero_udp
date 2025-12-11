@@ -48,6 +48,7 @@ int main(int argc, char *argv[]) {
 
 	int my_socket;
 
+	
 	// TODO: Create UDP socket
 
 	// TODO: Configure server address
