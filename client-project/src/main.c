@@ -2,20 +2,17 @@
  * main.c
  *
  * UDP Client - Template for Computer Networks assignment
- *
- * This file contains the boilerplate code for a UDP client
- * portable across Windows, Linux, and macOS.
  */
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>   // strncpy, strchr, memcpy, strcmp, sscanf
-#include <ctype.h>    // toupper
-#include <stdint.h>   // uint32_t
+#include <string.h>
+#include <ctype.h> 
+#include <stdint.h>
 #include "protocol.h"
 
-#define REQ_SIZE  (sizeof(char) + 64)  // 1 byte type + 64 byte city
-#define RESP_SIZE (sizeof(unsigned int) + sizeof(char) + sizeof(float))
+#define REQ_SIZE (sizeof(char) + 64)
+#define RESP_SIZE (sizeof(uint32_t) + sizeof(char) + sizeof(float)) // 9 byte
 #define NO_ERROR 0
 
 #if defined WIN32
@@ -37,30 +34,23 @@ void clearwinsock() {
 #endif
 }
 
-// UTILITY PER LA GESTIONE DEGLI ERRORI
 void errorhandler(char *error_message) {
-    printf("ERROR: %s\n", error_message);
+    fprintf(stderr, "ERROR: %s\n", error_message);
     clearwinsock();
-    exit(1); // Termina il programma
+    exit(1);
 }
 
 int main(int argc, char *argv[]) {
 
     // --- GESTIONE ARGOMENTI RIGA DI COMANDO ---
-    // valori di default
-    char *server_ip = (char*)DEFAULT_SERVER_ADDRESS;
+    char *server_name_input = DEFAULT_SERVER_ADDRESS; // Può essere IP o nome host
     int port = DEFAULT_PORT;
-    char *request_arg = NULL; // Conterrà la stringa
-
-    // variabili per DNS Lookup e output
-    char server_ip_str[16];         // stringa per l'indirizzo IP numerico finale (es. "127.0.0.1")
-    char *server_name_canonico = NULL; // nome canonico per l'output (es. "localhost")
-    struct hostent *host_info;      // struttura per i risultati DNS
-
-    // parsing degli argomenti: -s server, -p port, -r request
+    char *request_arg = NULL;
+    
+    // Parsing degli argomenti: -s server, -p port, -r request
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-s") == 0 && i + 1 < argc) {
-            server_ip = argv[++i];
+            server_name_input = argv[++i];
         } else if (strcmp(argv[i], "-p") == 0 && i + 1 < argc) {
             port = atoi(argv[++i]);
         } else if (strcmp(argv[i], "-r") == 0 && i + 1 < argc) {
@@ -68,15 +58,13 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    // se manca la richiesta obbligatoria (-r), mostra l'uso ed esce
     if (request_arg == NULL) {
         printf("Uso: %s [-s server] [-p port] -r \"type city\"\n", argv[0]);
         printf("Esempio: %s -r \"t bari\"\n", argv[0]);
         return -1;
     }
 
-    // Parsing della stringa di richiesta in struttura weather_request_t
-
+    // 🛑 CORREZIONE CRITICA 1: Parsing robusto della stringa richiesta
     weather_request_t request;
     memset(&request, 0, sizeof(request));
 
@@ -86,7 +74,7 @@ int main(int argc, char *argv[]) {
     
     char *space_pos = strchr(request_arg, ' ');
 
-    // 1. Validazione Formato (Deve esserci uno spazio E il type deve essere 1 carattere)
+    // 1. Validazione Formato e Lunghezza Type (Deve essere 1 carattere)
     if (space_pos == NULL || (space_pos - request_arg) != 1) {
         printf("ERRORE DI SINTASSI: Il tipo di richiesta deve essere un singolo carattere (es. t, h, w, p) seguito da uno spazio.\n");
         return -1;
@@ -95,15 +83,13 @@ int main(int argc, char *argv[]) {
     // 2. Estrazione del Type
     request.type = request_arg[0];
 
-    // 3. Estrazione della City (dal carattere dopo il primo spazio)
+    // 3. Estrazione della City
     char *city_start = space_pos + 1;
-
-    // Ignora spazi multipli tra type e city (sebbene non richiesto, aumenta la robustezza)
     while (*city_start == ' ') { 
         city_start++;
     }
 
-    // 4. Validazione Lunghezza della City (Specificato: max 63 caratteri)
+    // 4. Validazione Lunghezza della City
     size_t actual_city_len = strlen(city_start);
     if (actual_city_len == 0 || actual_city_len >= sizeof(request.city)) {
         printf("ERRORE DI VALIDAZIONE: Il nome della città non è specificato o supera la lunghezza massima di %zu caratteri.\n", sizeof(request.city) - 1);
@@ -113,12 +99,10 @@ int main(int argc, char *argv[]) {
     // 5. Copia e Null-Terminazione
     strncpy(request.city, city_start, sizeof(request.city) - 1);
     request.city[sizeof(request.city) - 1] = '\0';
-
+    
 #if defined WIN32
-    // Initialize Winsock
     WSADATA wsa_data;
-    int result = WSAStartup(MAKEWORD(2,2), &wsa_data);
-    if (result != NO_ERROR) {
+    if (WSAStartup(MAKEWORD(2,2), &wsa_data) != NO_ERROR) {
         printf("Errore in WSAStartup()\n");
         return 0;
     }
@@ -131,146 +115,123 @@ int main(int argc, char *argv[]) {
         errorhandler("Creazione socket fallita.");
     }
 
-    // Timeout sulla recvfrom (5 secondi)
-    struct timeval tv;
-    tv.tv_sec  = 5;
-    tv.tv_usec = 0;
-    setsockopt(clientSocket, SOL_SOCKET, SO_RCVTIMEO,
-               (const char*)&tv, sizeof(tv));
+    // 🛑 CORREZIONE 2: Configurazione e Risoluzione DNS del Server con getaddrinfo
+    struct addrinfo hints, *server_info, *p;
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_INET; // IPv4
+    hints.ai_socktype = SOCK_DGRAM; // UDP
 
-    // CONFIGURAZIONE E RISOLUZIONE DNS DEL SERVER
-    struct sockaddr_in serverAddress;
-    memset(&serverAddress, 0, sizeof(serverAddress));
-    serverAddress.sin_family = AF_INET;
-    serverAddress.sin_port   = htons(port);
+    char port_str[6];
+    sprintf(port_str, "%d", port);
 
-    /* tenta di convertire l'input 'server_ip' in indirizzo IP numerico.
-       se fallisce, 'server_ip' è un nome simbolico (hostname). */
-    if ((serverAddress.sin_addr.s_addr = inet_addr(server_ip)) == INADDR_NONE) {
+    // Risoluzione DNS (gestisce sia hostname che IP)
+    int rv = getaddrinfo(server_name_input, port_str, &hints, &server_info);
+    if (rv != 0) {
+        fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
+        errorhandler("Risoluzione nome/IP server fallita.");
+    }
+    
+    p = server_info; // Usa il primo risultato
 
-        // caso 1: L'input è un NOME SIMBOLICO
-        host_info = gethostbyname(server_ip);
+    // VARIABILI PER OUTPUT: Risoluzione inversa per nome canonico/IP
+    char server_ip_str[NI_MAXHOST];
+    char server_name_canonico[NI_MAXHOST];
+    
+    // Ottieni IP numerico per l'output
+    getnameinfo(p->ai_addr, p->ai_addrlen,
+                server_ip_str, NI_MAXHOST,
+                NULL, 0,
+                NI_NUMERICHOST);
 
-        if (host_info == NULL) {
-            errorhandler("Risoluzione nome server fallita (gethostbyname).");
-        }
-
-        memcpy(&serverAddress.sin_addr,
-               host_info->h_addr_list[0],
-               host_info->h_length);
-
-        server_name_canonico = host_info->h_name; // nome canonico dal DNS
-
-    } else {
-
-        // caso 2: L'input è un INDIRIZZO IP NUMERICO
-        struct in_addr addr;
-        addr.s_addr = serverAddress.sin_addr.s_addr;
-
-        host_info = gethostbyaddr((char *) &addr, sizeof(addr), AF_INET);
-
-        if (host_info == NULL) {
-            server_name_canonico = server_ip; // usa l'IP come nome
-        } else {
-            server_name_canonico = host_info->h_name; // nome canonico dal DNS
-        }
+    // Ottieni nome canonico per l'output (se fallisce, usa l'IP come nome)
+    if (getnameinfo(p->ai_addr, p->ai_addrlen,
+                    server_name_canonico, NI_MAXHOST,
+                    NULL, 0,
+                    NI_NAMEREQD) != 0) {
+        strncpy(server_name_canonico, server_ip_str, NI_MAXHOST - 1);
+        server_name_canonico[NI_MAXHOST - 1] = '\0';
     }
 
-    // salva la stringa IP finale (per l'output)
-    strncpy(server_ip_str, inet_ntoa(serverAddress.sin_addr), 15);
-    server_ip_str[15] = '\0'; // Assicura la terminazione
 
-    // LOGICA DI COMUNICAZIONE CON IL SERVER (REQUEST/RESPONSE)
+    // SERIALIZZAZIONE MANUALE E INVIO DELLA RICHIESTA
 
-    // SERIALIZZAZIONE MANUALE DELLA RICHIESTA
     char buffer_request[REQ_SIZE];
     int offset = 0;
 
+    // Serializza type (1 byte)
     memcpy(buffer_request + offset, &request.type, sizeof(char));
     offset += sizeof(char);
 
+    // Serializza city (64 byte)
+    // Invia 64 byte, inclusa la terminazione null, come previsto dalla serializzazione
     memcpy(buffer_request + offset, request.city, sizeof(request.city));
-    offset += sizeof(request.city);
+    offset += sizeof(request.city); // offset = 65
 
-    // Invio della richiesta al server usando sendto()
-    if (sendto(clientSocket,
-               buffer_request,
-               offset,
-               0,
-               (struct sockaddr*)&serverAddress,
-               sizeof(serverAddress)) != offset) {
+    // Invio della richiesta al server
+    if (sendto(clientSocket, buffer_request, offset, 0,
+               p->ai_addr, p->ai_addrlen) != offset) { 
+        freeaddrinfo(server_info);
         errorhandler("sendto() fallita: inviato numero di byte diverso da quello atteso.");
     }
 
     // RICEZIONE DELLA RISPOSTA DAL SERVER (recvfrom)
     char buffer_response[RESP_SIZE];
-    struct sockaddr_in fromAddr;
-    unsigned int fromSize = sizeof(fromAddr);
+    struct sockaddr_storage fromAddr;
+    socklen_t fromSize = sizeof(fromAddr);
 
-    int bytes_received = recvfrom(clientSocket,
-                                  buffer_response,
-                                  RESP_SIZE,
-                                  0,
-                                  (struct sockaddr*)&fromAddr,
-                                  &fromSize);
-
-    printf("DEBUG: recvfrom() ha restituito %d byte\n", bytes_received);
+    int bytes_received = recvfrom(clientSocket, buffer_response, RESP_SIZE, 0,
+                                  (struct sockaddr*)&fromAddr, &fromSize);
 
     if (bytes_received <= 0) {
-        errorhandler("recvfrom() fallita o nessun datagramma ricevuto (timeout?).");
+        freeaddrinfo(server_info);
+        // Questo errore indica che il Server non ha risposto o è crashato!
+        errorhandler("recvfrom() fallita o nessun datagramma ricevuto.");
     }
 
-    // controllo di sicurezza: Verifica che il pacchetto provenga dal server atteso
-    if (serverAddress.sin_addr.s_addr != fromAddr.sin_addr.s_addr) {
-        printf("ERRORE DI SICUREZZA: Pacchetto ricevuto da sorgente sconosciuta. IP: %s\n",
-               inet_ntoa(fromAddr.sin_addr));
-        closesocket(clientSocket);
-        clearwinsock();
-        exit(1);
-    }
-
-    // DESERIALIZZAZIONE E CONVERSIONE NBO DELLA RISPOSTA
+    // Deserializzazione e Conversione NBO della Risposta
     weather_response_t response;
     offset = 0;
 
+    // 1. Deserializza status (NBO -> Host)
     uint32_t net_status;
     memcpy(&net_status, buffer_response + offset, sizeof(uint32_t));
-    response.status = ntohl(net_status);
+    response.status = ntohl(net_status); 
     offset += sizeof(uint32_t);
 
+    // 2. Deserializza type (1 byte)
     memcpy(&response.type, buffer_response + offset, sizeof(char));
     offset += sizeof(char);
 
+    // 3. Deserializza value (uint32_t NBO -> float Host)
     uint32_t net_value;
     memcpy(&net_value, buffer_response + offset, sizeof(uint32_t));
-    net_value = ntohl(net_value);
-    memcpy(&response.value, &net_value, sizeof(float));
+    net_value = ntohl(net_value); 
+    memcpy(&response.value, &net_value, sizeof(float)); 
+    
+    // Stampa iniziale
+    printf("Ricevuto risultato dal server %s (ip %s). ", server_name_canonico, server_ip_str);
 
-    // stampa iniziale: Ricevuto risultato dal server <nomeserver> (ip <IP>).
-    printf("Ricevuto risultato dal server %s (ip %s). ",
-           server_name_canonico, server_ip_str);
-
-    // visualizzazione della risposta in base allo Status
+    // Visualizzazione della risposta
     if (response.status == STATUS_SUCCESS) {
-
-        // reinseriamo la logica toupper per la città
-        request.city[0] = (char)toupper((unsigned char)request.city[0]);
+        
+        // Correzione Capitalizzazione (solo la prima lettera)
+        request.city[0] = toupper(request.city[0]);
 
         switch(response.type) {
-            case 't':
-                printf("%s: Temperatura = %.1f°C\n", request.city, response.value);
+            case 't': 
+                printf("%s: Temperatura = %.1f°C\n", request.city, response.value); 
                 break;
-            case 'h':
-                printf("%s: Umidità = %.1f%%\n", request.city, response.value);
+            case 'h': 
+                printf("%s: Umidità = %.1f%%\n", request.city, response.value); 
                 break;
-            case 'w':
-                printf("%s: Vento = %.1f km/h\n", request.city, response.value);
+            case 'w': 
+                printf("%s: Vento = %.1f km/h\n", request.city, response.value); 
                 break;
-            case 'p':
-                printf("%s: Pressione = %.1f hPa\n", request.city, response.value);
+            case 'p': 
+                printf("%s: Pressione = %.1f hPa\n", request.city, response.value); 
                 break;
             default:
-                printf("Dati meteo ricevuti (Valore: %.1f)\n", response.value);
+                printf("Dati meteo ricevuti (Tipo non riconosciuto: %c, Valore: %.1f)\n", response.type, response.value);
         }
 
     } else if (response.status == STATUS_CITY_NOT_AVAILABLE) {
@@ -281,8 +242,9 @@ int main(int argc, char *argv[]) {
         printf("Errore sconosciuto dal server (Status: %u)\n", response.status);
     }
 
-    // CHIUSURA DELLA CONNESSIONE
+    // CHIUSURA
+    freeaddrinfo(server_info);
     closesocket(clientSocket);
     clearwinsock();
     return 0;
-} // main end.
+}
