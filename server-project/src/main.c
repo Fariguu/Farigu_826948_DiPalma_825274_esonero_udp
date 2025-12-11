@@ -11,13 +11,16 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-
+#include <stdint.h>
 #include "protocol.h"
 
+#define REQ_SIZE (sizeof(char) + 64)
+#define RESP_SIZE (sizeof(unsigned int) + sizeof(char) + sizeof(float))
 #define NO_ERROR 0
 
 #if defined WIN32
-    #include <winsock.h>
+    #include <winsock2.h>
+    #include <ws2tcpip.h>
     #include <windows.h>
     #define strcasecmp stricmp
 #else
