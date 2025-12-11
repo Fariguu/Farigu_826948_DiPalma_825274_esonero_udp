@@ -206,6 +206,48 @@ int main(int argc, char *argv[]) {
 
     memcpy(&response.value, &net_value, sizeof(float)); 
 
+    // Stampa iniziale: Ricevuto risultato dal server <nomeserver> (ip <IP>).
+    printf("Ricevuto risultato dal server %s (ip %s). ", server_name_canonico, server_ip_str);
+
+    // Visualizzazione della risposta in base allo Status
+    if (response.status == STATUS_SUCCESS) {
+        
+        // Reinseriamo la logica toupper per la città
+        request.city[0] = toupper(request.city[0]);
+
+        switch(response.type) {
+            case 't': 
+                // Formato: NomeCittà: Temperatura = XX.X°C
+                printf("%s: Temperatura = %.1f°C\n", request.city, response.value); 
+                break;
+            case 'h': 
+                // Formato: NomeCittà: Umidità = XX.X%
+                printf("%s: Umidità = %.1f%%\n", request.city, response.value); 
+                break;
+            case 'w': 
+                // Formato: NomeCittà: Vento = XX.X km/h
+                printf("%s: Vento = %.1f km/h\n", request.city, response.value); 
+                break;
+            case 'p': 
+                // Formato: NomeCittà: Pressione = XXXX.X hPa
+                printf("%s: Pressione = %.1f hPa\n", request.city, response.value); 
+                break;
+            default:
+                // Caso di sicurezza
+                printf("Dati meteo ricevuti (Valore: %.1f)\n", response.value);
+        }
+
+    } else if (response.status == STATUS_CITY_NOT_AVAILABLE) {
+        // Formato: Città non disponibile
+        printf("Città non disponibile\n");
+    } else if (response.status == STATUS_INVALID_REQUEST) {
+        // Formato: Richiesta non valida
+        printf("Richiesta non valida\n");
+    } else {
+        // Errore generico
+        printf("Errore sconosciuto dal server (Status: %d)\n", response.status);
+    }
+
     // CHIUSURA DELLA CONNESSIONE
     closesocket(clientSocket);
     clearwinsock();
