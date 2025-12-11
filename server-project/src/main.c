@@ -151,20 +151,34 @@ int main(int argc, char *argv[]) {
         weather_request_t  request;
         weather_response_t response;
 
-        // riceve la richiesta dal client (datagram)
-        int bytes_received = recvfrom(serverSocket,
-                                      (char*)&request,
-                                      sizeof(request),
-                                      0,
-                                      (struct sockaddr*)&clientAddress,
-                                      &client_len);
-        if (bytes_received <= 0) {
-            errorhandler("recvfrom() failed or empty datagram");
-            continue; // resta in ascolto
-        }
+        // Blocco da SOSTITUIRE: Ricezione della richiesta
 
-        // assicura che la stringa 'city' sia null-terminated (funzione di sicurezza)
-        request.city[sizeof(request.city) - 1] = '\0';
+    // 1. Definizione di un buffer per il datagramma grezzo
+    char recv_buffer[REQ_SIZE]; 
+    int bytes_received = recvfrom(serverSocket,
+                                recv_buffer,
+                                REQ_SIZE,
+                                0,
+                                (struct sockaddr*)&clientAddress,
+                                &client_len);
+    if (bytes_received <= 0) {
+        errorhandler("recvfrom() failed or empty datagram");
+        continue;
+    }
+
+    // Deserializzazione Manuale
+    int offset = 0;
+
+    // Deserializzazione type
+    memcpy(&request.type, recv_buffer + offset, sizeof(char));
+    offset += sizeof(char);
+
+    // Deserializzazione city
+    size_t city_len = (bytes_received - offset > sizeof(request.city)) ? sizeof(request.city) : bytes_received - offset;
+    memcpy(request.city, recv_buffer + offset, city_len);
+    
+    // Assicura il null-terminator
+    request.city[sizeof(request.city) - 1] = '\0';
 
         char client_ip[INET_ADDRSTRLEN];
         inet_ntop(AF_INET, &clientAddress.sin_addr,
