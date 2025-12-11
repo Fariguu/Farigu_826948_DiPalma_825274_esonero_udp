@@ -11,13 +11,16 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-
+#include <stdint.h>
 #include "protocol.h"
 
+#define REQ_SIZE (sizeof(char) + 64)
+#define RESP_SIZE (sizeof(unsigned int) + sizeof(char) + sizeof(float))
 #define NO_ERROR 0
 
 #if defined WIN32
-    #include <winsock.h>
+    #include <winsock2.h>
+    #include <ws2tcpip.h>
     #include <windows.h>
     #define strcasecmp stricmp
 #else
@@ -173,12 +176,50 @@ int main(int argc, char *argv[]) {
         // assicura che la stringa 'city' sia null-terminated (funzione di sicurezza)
         request.city[sizeof(request.city) - 1] = '\0';
 
-        char client_ip[INET_ADDRSTRLEN];
-        inet_ntop(AF_INET, &clientAddress.sin_addr,
-                  client_ip, INET_ADDRSTRLEN);
+    // Deserializzazione Manuale
+    int offset = 0;
 
-        printf("Request '%c' '%s' from client ip %s\n",
-               request.type, request.city, client_ip);
+    // Deserializzazione type
+    memcpy(&request.type, recv_buffer + offset, sizeof(char));
+    offset += sizeof(char);
+
+    // Deserializzazione city
+    size_t city_len = (bytes_received - offset > sizeof(request.city)) ? sizeof(request.city) : bytes_received - offset;
+    memcpy(request.city, recv_buffer + offset, city_len);
+
+    // Assicura il null-terminator
+    request.city[sizeof(request.city) - 1] = '\0';
+
+        // LOGGING 
+        char client_host[NI_MAXHOST];
+        char client_ip[NI_MAXHOST];
+
+        // 1. Ottieni l'Hostname
+        int res_host = getnameinfo((struct sockaddr*)&clientAddress,
+                                   client_len,
+                                   client_host, NI_MAXHOST,
+                                   NULL, 0,
+                                   NI_NAMEREQD);
+
+        if (res_host != 0) {
+            // Se fallisce, usiamo l'IP sia per il nome host che per l'IP
+            getnameinfo((struct sockaddr*)&clientAddress, client_len,
+                         client_ip, NI_MAXHOST,
+                         NULL, 0,
+                         NI_NUMERICHOST);
+            // Sostituiamo il nome host con l'IP (come fallback)
+            strncpy(client_host, client_ip, NI_MAXHOST); 
+            client_host[NI_MAXHOST - 1] = '\0';
+        } else {
+             // 2. Ottieni l'IP numerico
+             getnameinfo((struct sockaddr*)&clientAddress, client_len,
+                         client_ip, NI_MAXHOST,
+                         NULL, 0,
+                         NI_NUMERICHOST);
+        }
+
+        printf("Richiesta ricevuta da %s (ip %s): type='%c', city='%s'\n",
+               client_host, client_ip, request.type, request.city);
 
         // 3.2 valida la richiesta e prepara la risposta
         unsigned int status = validate_request(&request);

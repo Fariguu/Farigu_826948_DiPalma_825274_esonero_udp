@@ -8,8 +8,9 @@
  */
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h> // necessario per strncpy e strchr
-#include <ctype.h> // necessario per la funzione toupper()
+#include <string.h> // Necessario per strncpy e strchr
+#include <ctype.h> // Necessario per la funzione toupper()
+#include <stdint.h>
 #include "protocol.h"
 
 #define REQ_SIZE (sizeof(char) + sizeof(request.city))
@@ -21,9 +22,9 @@
     #include <ws2tcpip.h>
 #else
     #include <unistd.h>
+    #include <arpa/inet.h>
     #include <sys/types.h>
     #include <sys/socket.h>
-    #include <arpa/inet.h>
     #include <netinet/in.h>
     #include <netdb.h>
     #define closesocket close
@@ -191,7 +192,7 @@ int main(int argc, char *argv[]) {
     }
 
     // RICEZIONE DELLA RISPOSTA DAL SERVER (recvfrom)
-    // definiamo un buffer per ricevere il datagramma di risposta (9 byte)
+    // definiamo un buffer per ricevere il datagramma di risposta (9 byte).
 
     char buffer_response[RESP_SIZE];
     struct sockaddr_in fromAddr;
