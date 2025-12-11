@@ -30,6 +30,15 @@
     #define closesocket close
 #endif
 
+/* Fallback se qualche header non definisce questi simboli */
+#ifndef INET_ADDRSTRLEN
+#define INET_ADDRSTRLEN 16
+#endif
+
+#if defined WIN32
+typedef int socklen_t;
+#endif
+
 void clearwinsock() {
 #if defined WIN32
     WSACleanup();
@@ -87,7 +96,7 @@ unsigned int validate_request(weather_request_t* req) { // controlla se l'intera
         return STATUS_INVALID_REQUEST; // 2
     }
 
-    // Controllo città
+    // controllo città
     if (!is_city_supported(req->city)) {
         return STATUS_CITY_NOT_AVAILABLE; // 1
     }
@@ -114,7 +123,7 @@ int main(int argc, char *argv[]) {
 #endif
 
     // 1. CREAZIONE DELLA SOCKET UDP
-    int serverSocket; // Nome carino per la socket
+    int serverSocket; // nome carino per la socket
     serverSocket = socket(PF_INET, SOCK_DGRAM, 0);
     if (serverSocket < 0) {
         errorhandler("Server socket creation failed");
@@ -127,7 +136,7 @@ int main(int argc, char *argv[]) {
     memset(&serverAddress, 0, sizeof(serverAddress));
     serverAddress.sin_family = AF_INET;
     serverAddress.sin_addr.s_addr = inet_addr("127.0.0.1");
-    serverAddress.sin_port = htons(DEFAULT_PORT); // Porta da protocol.h
+    serverAddress.sin_port = htons(DEFAULT_PORT); // porta da protocol.h
 
     if (bind(serverSocket, (struct sockaddr*) &serverAddress,
              sizeof(serverAddress)) < 0) {
@@ -148,7 +157,7 @@ int main(int argc, char *argv[]) {
         weather_request_t  request;
         weather_response_t response;
 
-        // 3.1 Riceve la richiesta dal client (datagram)
+        // 3.1 riceve la richiesta dal client (datagram)
         int bytes_received = recvfrom(serverSocket,
                                       (char*)&request,
                                       sizeof(request),
@@ -170,7 +179,7 @@ int main(int argc, char *argv[]) {
         printf("Request '%c' '%s' from client ip %s\n",
                request.type, request.city, client_ip);
 
-        // 3.2 Valida la richiesta e prepara la risposta
+        // 3.2 valida la richiesta e prepara la risposta
         unsigned int status = validate_request(&request);
         response.status = status;
 
@@ -202,7 +211,7 @@ int main(int argc, char *argv[]) {
             response.value = 0.0f;
         }
 
-        // 3.3 Invia la risposta al client
+        // 3.3 invia la risposta al client
         if (sendto(serverSocket,
                    (char*)&response,
                    sizeof(response),
@@ -213,7 +222,7 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    // (non raggiunto, ma corretto per completezza)
+    // non raggiunto, ma corretto
     printf("Server terminated.\n");
     closesocket(serverSocket);
     clearwinsock();
