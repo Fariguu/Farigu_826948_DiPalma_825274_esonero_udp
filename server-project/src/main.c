@@ -38,7 +38,7 @@ void clearwinsock() {
 }
 
 void errorhandler(char *error_message) {
-    fprintf(stderr, "SERVER ERROR: %s\n", error_message);
+    fprintf(stderr, "ERRORE SERVER: %s\n", error_message);
 }
 
 /* =================================================================
@@ -119,14 +119,14 @@ int main(int argc, char *argv[]) {
 #if defined WIN32
     WSADATA wsa_data;
     if (WSAStartup(MAKEWORD(2,2), &wsa_data) != NO_ERROR) {
-        printf("Error at WSAStartup()\n");
+        printf("Errore WSAStartup()\n");
         return 0;
     }
 #endif
 
     int serverSocket = socket(PF_INET, SOCK_DGRAM, 0);
     if (serverSocket < 0) {
-        errorhandler("Server socket creation failed");
+        errorhandler("Creazione socket fallita.");
         clearwinsock();
         return -1;
     }
@@ -140,13 +140,13 @@ int main(int argc, char *argv[]) {
     if (bind(serverSocket,
              (struct sockaddr*)&serverAddress,
              sizeof(serverAddress)) < 0) {
-        errorhandler("bind() failed.");
+        errorhandler("bind() fallita."); //
         closesocket(serverSocket);
         clearwinsock();
         return -1;
     }
 
-    printf("Weather UDP Server started. Waiting for datagrams on port '%d'...\n",
+    printf("Server meteo UDP avviato. In attesa dei datagrammi sulla porta '%d'...\n",
            port);
 
     while (1) {
@@ -165,7 +165,7 @@ int main(int argc, char *argv[]) {
                                       (struct sockaddr*)&clientAddress,
                                       &client_len);
         if (bytes_received <= 0) {
-            errorhandler("recvfrom() failed or empty datagram");
+            errorhandler("recvfrom() fallita o nessun datagramma ricevuto.");
             continue;
         }
 
@@ -198,7 +198,7 @@ int main(int argc, char *argv[]) {
             client_host[NI_MAXHOST - 1] = '\0';
         }
 
-        printf("Richiesta ricevuta da %s (ip %s): type='%c', city='%s'\n",
+        printf("Richiesta ricevuta da %s (ip %s): tipo='%c', città='%s'\n",
                client_host, client_ip, request.type, request.city);
 
         unsigned int status = validate_request(&request);
@@ -243,11 +243,11 @@ int main(int argc, char *argv[]) {
                    0,
                    (struct sockaddr*)&clientAddress,
                    client_len) < 0) {
-            errorhandler("sendto() failed");
+            errorhandler("sendto() fallita.");
         }
     }
 
-    printf("Server terminated.\n");
+    printf("Servizio server meteo UDP terminato.\n");
     closesocket(serverSocket);
     clearwinsock();
     return 0;
