@@ -212,9 +212,13 @@ int main(int argc, char *argv[]) {
                 case 'w': response.value = get_wind();        break;
                 case 'p': response.value = get_pressure();    break;
                 default:
-                    response.type  = '\0';
-                    response.value = 0.0f;
-                    break;
+
+                    if (request.type != 't' && request.type != 'h' && request.type != 'w' && request.type != 'p') {
+                        response.type  = '\0';
+                        response.value = 0.0f;
+                        break;
+                    }
+                    
             }
         } else {
             response.type  = '\0';
