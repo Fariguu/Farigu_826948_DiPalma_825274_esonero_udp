@@ -214,6 +214,7 @@ int main(int argc, char *argv[]) {
                 default:
                     response.type  = '\0';
                     response.value = 0.0f;
+                    break;
                     
             }
         } else {
