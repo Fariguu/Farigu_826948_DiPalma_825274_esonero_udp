@@ -91,12 +91,29 @@ int is_city_supported(char* city_name) {
     return 0;
 }
 
+int has_invalid_characters(charstr) {
+    for (int i = 0; str[i] != '\0'; i++) {      // se il carattere NON è una lettera E NON è uno spazio -> è invalido
+
+        if (!isalpha((unsigned char)str[i]) && !isspace((unsigned char)str[i])) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 unsigned int validate_request(weather_request_t* req) {
     char t = req->type;
+    // controlla il tipo richiesta
     if (t != 't' && t != 'h' && t != 'w' && t != 'p') {
         return STATUS_INVALID_REQUEST;
     }
 
+    // controlla se ci sono caratteri invalidi
+    if (has_invalid_characters(req->city)) {
+        return STATUS_INVALID_REQUEST;
+    }
+
+    // controlla la città supportata
     if (!is_city_supported(req->city)) {
         return STATUS_CITY_NOT_AVAILABLE;
     }
@@ -212,13 +229,10 @@ int main(int argc, char *argv[]) {
                 case 'w': response.value = get_wind();        break;
                 case 'p': response.value = get_pressure();    break;
                 default:
+                    response.type  = '\0';
+                    response.value = 0.0f;
+                    break;
 
-                    if (request.type != 't' && request.type != 'h' && request.type != 'w' && request.type != 'p') {
-                        response.type  = '\0';
-                        response.value = 0.0f;
-                        break;
-                    }
-                    
             }
         } else {
             response.type  = '\0';
