@@ -94,7 +94,7 @@ int is_city_supported(char* city_name) {
 int has_invalid_characters(char *str) {
     for (int i = 0; str[i] != '\0'; i++) {      // se il carattere NON è una lettera E NON è uno spazio -> è invalido
 
-        if (!isalpha((unsigned char)str[i]) && !isspace((unsigned char)str[i])) {
+        if (!isalnum((unsigned char)str[i]) && !isspace((unsigned char)str[i])) {
             return 1;
         }
     }
